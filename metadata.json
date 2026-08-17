@@ -1,0 +1,6 @@
+{
+  "name": "The Kinetic Sphere - Luxury 3D Basketball Experience",
+  "description": "Hyper-realistic 3D interactive basketball showcase featuring real-time WebGL rendering, scroll-driven anatomical deconstruction, macro grain inspection, wind-tunnel flight aerodynamics, and a bespoke bespoke 3D configurator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
