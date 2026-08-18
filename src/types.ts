@@ -22,7 +22,8 @@ export type ViewSection =
   | 'deconstruction'
   | 'macro'
   | 'aerodynamics'
-  | 'customizer';
+  | 'customizer'
+  | 'footer';
 
 export type ThemeMode = 'day' | 'night';
 

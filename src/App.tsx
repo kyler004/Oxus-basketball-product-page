@@ -10,6 +10,7 @@ import { AerodynamicsSection } from './components/AerodynamicsSection';
 import { CustomizerStudio } from './components/CustomizerStudio';
 import { CourtSandboxModal } from './components/CourtSandboxModal';
 import { ReserveModal } from './components/ReserveModal';
+import { Footer } from './components/Footer';
 import { sound } from './utils/audio';
 
 const SECTIONS: { id: string; section: ViewSection; label: string; shortLabel: string; num: string }[] = [
@@ -18,6 +19,7 @@ const SECTIONS: { id: string; section: ViewSection; label: string; shortLabel: s
   { id: 'macro', section: 'macro', label: 'GRAIN & GRIP', shortLabel: 'Grain', num: '03' },
   { id: 'aerodynamics', section: 'aerodynamics', label: 'AERODYNAMICS', shortLabel: 'Aero', num: '04' },
   { id: 'bespoke', section: 'customizer', label: 'BESPOKE LAB', shortLabel: 'Bespoke', num: '05' },
+  { id: 'atelier', section: 'footer', label: 'ATELIER & SPECS', shortLabel: 'Atelier', num: '06' },
 ];
 
 export default function App() {
@@ -376,6 +378,25 @@ export default function App() {
             themeMode={themeMode}
           />
         </div>
+
+        {/* Section 06: Stylized Atelier Specifications & Engineering Footer */}
+        <div
+          className={`absolute inset-0 w-full h-full flex flex-col justify-end transition-all duration-700 ease-out ${
+            activeSectionIndex === 5
+              ? 'opacity-100 scale-100 pointer-events-auto z-20 translate-y-0'
+              : 'opacity-0 scale-[0.98] pointer-events-none z-10 translate-y-4'
+          }`}
+        >
+          <div className="w-full max-h-full overflow-y-auto pointer-events-auto pt-20">
+            <Footer
+              onScrollToSection={handleScrollToSection}
+              themeMode={themeMode}
+              config={config}
+              onOpenCourtSandbox={() => setIsCourtSandboxOpen(true)}
+              onOpenReserveModal={() => setIsReserveModalOpen(true)}
+            />
+          </div>
+        </div>
       </main>
 
       {/* Sleek Presentation Step Pagination Indicator on the Left */}
@@ -409,7 +430,7 @@ export default function App() {
         <span className={`text-[10px] tracking-wider uppercase font-semibold hidden sm:inline ${
           isNight ? 'text-[#C4C6D2]' : 'text-[#555760]'
         }`}>
-          / 05 // {SECTIONS[activeSectionIndex].label}
+          / {String(SECTIONS.length).padStart(2, '0')} // {SECTIONS[activeSectionIndex].label}
         </span>
       </nav>
 
