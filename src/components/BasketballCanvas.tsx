@@ -7,15 +7,15 @@ import { sound } from '../utils/audio';
 interface BasketballCanvasProps {
   config: BallConfig;
   activeSection: ViewSection;
-  explosionProgress: number; // 0 to 1
+  explosionProgress: number; // 0 (fully constructed) to 1 (fully exploded)
   lightingPreset: LightingPreset;
   themeMode?: ThemeMode;
   windSpeed: number; // 0 to 120 km/h
   ballRpm: number; // 0 to 300
   selectedLayerId: string | null;
   macroLightAngle: number; // 0 to 360 degrees
-  onCanvasClick?: () => void;
-  onBallBounce?: () => void;
+  bounceTrigger?: number;
+  spinTrigger?: number;
   snapshotTrigger?: number;
   onSnapshotReady?: (dataUrl: string) => void;
   // WebXR Props
@@ -34,6 +34,8 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
   ballRpm,
   selectedLayerId,
   macroLightAngle,
+  bounceTrigger = 0,
+  spinTrigger = 0,
   snapshotTrigger,
   onSnapshotReady,
   onVRStateChange,
@@ -66,18 +68,41 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
   const streamlinePositionsRef = useRef<Float32Array | null>(null);
   const streamlineOriginalsRef = useRef<Float32Array | null>(null);
 
-  // Interaction State
+  // Dynamic Animated Construction & Physics State
+  // Starts fully constructed (0) so the ball does not reconstruct on initial load
+  const currentExplosionProgressRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
   const previousMousePositionRef = useRef({ x: 0, y: 0 });
-  const rotationVelocityRef = useRef({ x: 0, y: 0.003 });
+  const rotationVelocityRef = useRef({ x: 0, y: 0.0035 });
   const ballPositionRef = useRef({ x: 0, y: 0, z: 0 });
   const bounceAnimationRef = useRef<{ isBouncing: boolean; startTime: number }>({ isBouncing: false, startTime: 0 });
+  
+  // Interactive Parallax State Ref
+  const mouseParallaxRef = useRef({ x: 0, y: 0 });
+  const currentParallaxRef = useRef({ x: 0, y: 0 });
 
   const [isLoading, setIsLoading] = useState(true);
 
   // Target camera configurations for each section
-  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7.5));
+  const targetCamPos = useRef(new THREE.Vector3(0, 0, 7.2));
   const targetCamLook = useRef(new THREE.Vector3(0, 0, 0));
+
+  // Listen to external bounce trigger
+  useEffect(() => {
+    if (bounceTrigger > 0) {
+      bounceAnimationRef.current = {
+        isBouncing: true,
+        startTime: Date.now(),
+      };
+    }
+  }, [bounceTrigger]);
+
+  // Listen to external spin trigger
+  useEffect(() => {
+    if (spinTrigger > 0) {
+      rotationVelocityRef.current.y = 0.22; // High-speed spin burst
+    }
+  }, [spinTrigger]);
 
   // Toggle WebXR Immersive VR Handler
   const toggleVR = useCallback(async () => {
@@ -129,7 +154,7 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     // 1. Scene
     const scene = new THREE.Scene();
     scene.background = null;
-    scene.fog = new THREE.FogExp2(0xD9D9DE, 0.02);
+    scene.fog = new THREE.FogExp2(themeMode === 'night' ? 0x121316 : 0xBEBEC6, 0.02);
     sceneRef.current = scene;
 
     // 2. Camera
@@ -139,7 +164,7 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
       0.1,
       100
     );
-    camera.position.set(0, 0.5, 7.5);
+    camera.position.set(0, 0, 7.2);
     cameraRef.current = camera;
 
     // 3. WebGL Renderer with WebXR Support
@@ -151,65 +176,40 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    
-    // Enable WebXR on renderer
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
     renderer.xr.enabled = true;
-    try {
-      renderer.xr.setReferenceSpaceType('local-floor');
-    } catch {
-      // Fallback to default local space
-    }
-
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // WebXR Session Lifecycle Listeners
-    renderer.xr.addEventListener('sessionstart', () => {
-      sound.playVREnter();
-      onVRStateChange?.(true, true, null);
-    });
+    // Check VR Support
+    if (typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as any).xr) {
+      (navigator as any).xr.isSessionSupported('immersive-vr').then((supported: boolean) => {
+        isVRSupportedRef.current = supported;
+        onVRStateChange?.(false, supported);
+      }).catch(() => {
+        isVRSupportedRef.current = false;
+        onVRStateChange?.(false, false);
+      });
+    }
 
-    renderer.xr.addEventListener('sessionend', () => {
-      sound.playVRExit();
-      onVRStateChange?.(false, isVRSupportedRef.current, null);
-    });
+    // VR Spatial Experience Group
+    const vrGroup = new THREE.Group();
+    vrGroup.visible = false;
+    scene.add(vrGroup);
+    vrGroupRef.current = vrGroup;
 
-    // WebXR VR Controllers & Interaction Rays
-    const controller1 = renderer.xr.getController(0);
-    controller1.addEventListener('selectstart', () => {
-      triggerBounce();
-    });
-    scene.add(controller1);
-
-    const controller2 = renderer.xr.getController(1);
-    controller2.addEventListener('selectstart', () => {
-      triggerBounce();
-    });
-    scene.add(controller2);
-
-    const rayGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -2.5),
-    ]);
-    const rayMat = new THREE.LineBasicMaterial({ color: 0x121316, transparent: true, opacity: 0.65 });
-    const rayLine1 = new THREE.Line(rayGeo, rayMat);
-    controller1.add(rayLine1);
-    const rayLine2 = new THREE.Line(rayGeo.clone(), rayMat);
-    controller2.add(rayLine2);
-
-    // 4. Lights
-    const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.95);
+    // 4. Lighting Rig
+    const ambientLight = new THREE.AmbientLight(0xffffff, themeMode === 'night' ? 0.45 : 0.95);
     scene.add(ambientLight);
     ambientLightRef.current = ambientLight;
 
-    const keyLight = new THREE.SpotLight(0xFFFDF7, 3.4);
-    keyLight.position.set(5, 7, 6);
+    const keyLight = new THREE.SpotLight(0xFFF6E5, themeMode === 'night' ? 4.2 : 3.4);
+    keyLight.position.set(5, 8, 6);
     keyLight.angle = Math.PI / 4;
-    keyLight.penumbra = 0.6;
+    keyLight.penumbra = 0.5;
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 2048;
     keyLight.shadow.mapSize.height = 2048;
@@ -217,102 +217,101 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     scene.add(keyLight);
     keyLightRef.current = keyLight;
 
-    const fillLight = new THREE.PointLight(0xEAEAEF, 1.8, 15);
-    fillLight.position.set(-6, -2, -4);
+    const fillLight = new THREE.PointLight(0x7DD3FC, 1.8, 25);
+    fillLight.position.set(-6, -3, 4);
     scene.add(fillLight);
     fillLightRef.current = fillLight;
 
-    const rimGoldLight = new THREE.DirectionalLight(0x2A2B30, 1.2);
-    rimGoldLight.position.set(0, 6, -5);
-    scene.add(rimGoldLight);
-    rimLightRef.current = rimGoldLight;
+    const rimLight = new THREE.DirectionalLight(0x94A3B8, themeMode === 'night' ? 2.5 : 1.2);
+    rimLight.position.set(0, -6, -5);
+    scene.add(rimLight);
+    rimLightRef.current = rimLight;
+
+    // Macro Orbital Torch Light
     const macroTorch = new THREE.PointLight(0xFFFFFF, 0, 10);
-    macroTorch.position.set(0, 0, 4);
+    macroTorch.position.set(2.5, 2.5, 3.5);
     scene.add(macroTorch);
     macroTorchRef.current = macroTorch;
 
-    // 5. Contact Shadow Plane
-    const courtGeo = new THREE.PlaneGeometry(30, 30);
-    const courtMat = new THREE.ShadowMaterial({
-      opacity: 0.18,
-    });
-    const courtFloor = new THREE.Mesh(courtGeo, courtMat);
-    courtFloor.rotation.x = -Math.PI / 2;
-    courtFloor.position.y = -3.2;
-    courtFloor.receiveShadow = true;
-    scene.add(courtFloor);
-    courtFloorRef.current = courtFloor;
+    // 5. Hardwood Court Shadow Caster Floor
+    const floorGeo = new THREE.PlaneGeometry(30, 30);
+    const floorMat = new THREE.ShadowMaterial({ opacity: themeMode === 'night' ? 0.45 : 0.25 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.rotation.x = -Math.PI / 2;
+    floorMesh.position.y = -2.4;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+    courtFloorRef.current = floorMesh;
 
-    // Subtle circular line decal
-    const ringGeo = new THREE.RingGeometry(2.4, 2.44, 64);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x121316, transparent: true, opacity: 0.12, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -3.19;
-    scene.add(ring);
+    // 6. Build 3D Models
+    try {
+      buildBasketballMesh(scene, config);
+      buildWindTunnelStreamlines(scene);
+      setIsLoading(false);
 
-    // VR Spatial Pedestal (Illuminated when in VR mode)
-    const vrGroup = new THREE.Group();
-    const pedestalGeo = new THREE.CylinderGeometry(0.7, 0.9, 0.08, 32);
-    const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0x141416,
-      metalness: 0.85,
-      roughness: 0.2,
-    });
-    const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
-    pedestal.position.set(0, 0.04, -1.2);
-    pedestal.receiveShadow = true;
-    vrGroup.add(pedestal);
-
-    const vrGlowRingGeo = new THREE.RingGeometry(0.72, 0.76, 32);
-    const vrGlowRingMat = new THREE.MeshBasicMaterial({ color: 0xF27D26, side: THREE.DoubleSide });
-    const vrGlowRing = new THREE.Mesh(vrGlowRingGeo, vrGlowRingMat);
-    vrGlowRing.rotation.x = -Math.PI / 2;
-    vrGlowRing.position.set(0, 0.082, -1.2);
-    vrGroup.add(vrGlowRing);
-
-    vrGroup.visible = false;
-    scene.add(vrGroup);
-    vrGroupRef.current = vrGroup;
-
-    // 6. Build Initial Basketball 3D Structure
-    buildBasketballMesh(scene, config);
-
-    // 7. Build Wind Tunnel Streamline Particles
-    buildWindTunnelStreamlines(scene);
-
-    setIsLoading(false);
-
-    // Check WebXR Compatibility
-    if (typeof navigator !== 'undefined' && 'xr' in navigator && (navigator as any).xr) {
-      (navigator as any).xr.isSessionSupported('immersive-vr')
-        .then((supported: boolean) => {
-          isVRSupportedRef.current = supported;
-          onVRStateChange?.(false, supported, null);
-        })
-        .catch(() => {
-          isVRSupportedRef.current = false;
-          onVRStateChange?.(false, false, null);
-        });
-    } else {
-      isVRSupportedRef.current = false;
-      onVRStateChange?.(false, false, null);
+      // On loading, trigger a realistic hardwood bounce sequence immediately
+      bounceAnimationRef.current = {
+        isBouncing: true,
+        startTime: Date.now() + 100,
+      };
+      setTimeout(() => {
+        sound.playBounce(0.85);
+      }, 100);
+    } catch (err) {
+      console.error('Error generating 3D models and procedural textures:', err);
+      setIsLoading(false);
     }
 
-    // Initial Entrance Bounce
-    triggerBounce();
-
-    // 8. Animation Loop (WebXR Compliant via setAnimationLoop)
+    // 7. Animation Loop (WebXR Compliant via setAnimationLoop)
     let clock = new THREE.Clock();
+
+    // Mouse movement parallax listener
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      // Normalized between -1 and 1
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+      mouseParallaxRef.current = { x: nx, y: ny };
+    };
+
+    // Scroll acceleration listener: boosts rotational momentum on scroll
+    const handleGlobalWheel = (e: WheelEvent) => {
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      const impulse = Math.sign(delta) * Math.min(Math.max(Math.abs(delta) * 0.0006, 0.025), 0.075);
+      rotationVelocityRef.current.y += impulse;
+      rotationVelocityRef.current.x += (Math.random() - 0.5) * 0.006;
+    };
+
+    window.addEventListener('pointermove', handleGlobalPointerMove);
+    window.addEventListener('wheel', handleGlobalWheel, { passive: true });
 
     renderer.setAnimationLoop(() => {
       const isPresenting = renderer.xr.isPresenting;
       const elapsedTime = clock.getElapsedTime();
 
-      // Smooth Camera Lerp when not presenting in VR headset
+      // Subtle mouse parallax calculation
+      const targetPx = mouseParallaxRef.current.x * 0.35;
+      const targetPy = mouseParallaxRef.current.y * 0.25;
+      currentParallaxRef.current.x += (targetPx - currentParallaxRef.current.x) * 0.045;
+      currentParallaxRef.current.y += (targetPy - currentParallaxRef.current.y) * 0.045;
+
+      const px = currentParallaxRef.current.x;
+      const py = currentParallaxRef.current.y;
+
+      // Smooth Camera Lerp with subtle mouse parallax shift when not in VR
       if (!isPresenting && cameraRef.current) {
-        cameraRef.current.position.lerp(targetCamPos.current, 0.05);
-        cameraRef.current.lookAt(targetCamLook.current);
+        const camPosWithParallax = new THREE.Vector3(
+          targetCamPos.current.x + px * 0.4,
+          targetCamPos.current.y + py * 0.3,
+          targetCamPos.current.z
+        );
+        cameraRef.current.position.lerp(camPosWithParallax, 0.05);
+
+        const lookAtWithParallax = new THREE.Vector3(
+          targetCamLook.current.x + px * 0.12,
+          targetCamLook.current.y + py * 0.12,
+          targetCamLook.current.z
+        );
+        cameraRef.current.lookAt(lookAtWithParallax);
       }
 
       // VR Spatial Viewport Placement
@@ -329,16 +328,104 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
         macroTorchRef.current.intensity = 0;
       }
 
-      // Ball Inertia & Rotation
+      // === PREMIUM SLOW CONTINUOUS CONSTRUCTION / DECONSTRUCTION INTERPOLATION ===
+      const targetProgress = explosionProgress;
+      // Damping factor: 0.028 creates an ultra-smooth, slow, luxurious physical gliding feel
+      currentExplosionProgressRef.current += (targetProgress - currentExplosionProgressRef.current) * 0.028;
+      const curProg = currentExplosionProgressRef.current;
+
+      // Update exploded layers vs solid assembled ball
+      if (explodedGroupRef.current && assembledBallRef.current) {
+        if (curProg < 0.008) {
+          // Fully assembled solid ball
+          assembledBallRef.current.visible = true;
+          explodedGroupRef.current.visible = false;
+        } else {
+          // Animated exploded / constructing state
+          assembledBallRef.current.visible = false;
+          explodedGroupRef.current.visible = true;
+
+          // 1. Outer 6 Curved Leather Panels
+          outerPanelsRef.current.forEach((panel, idx) => {
+            const angle = (idx / outerPanelsRef.current.length) * Math.PI * 2;
+            const dir = new THREE.Vector3(
+              Math.cos(angle) * (idx % 2 === 0 ? 1 : 0.85),
+              (idx % 2 === 0 ? 0.75 : -0.75),
+              Math.sin(angle) * (idx % 2 === 0 ? 1 : 0.85)
+            ).normalize();
+
+            // Distance expands from 0.02 to 2.8
+            const dist = 0.02 + curProg * 2.8;
+            panel.position.copy(dir.clone().multiplyScalar(dist));
+            
+            // Subtle rotation twist as panels glide in/out
+            const twistAngle = curProg * 0.4 * (idx % 2 === 0 ? 1 : -1);
+            panel.rotation.z = twistAngle;
+            panel.scale.setScalar(1 + curProg * 0.12);
+
+            const mat = panel.material as THREE.MeshStandardMaterial;
+            if (selectedLayerId && selectedLayerId !== 'layer-outer') {
+              mat.opacity = 0.3;
+              mat.transparent = true;
+            } else {
+              mat.opacity = 1.0;
+              mat.transparent = false;
+            }
+          });
+
+          // 2. 4-Ply Polyamide Windings Layer
+          if (windingsMeshRef.current) {
+            const wScale = 1.0 + curProg * 0.35;
+            windingsMeshRef.current.scale.setScalar(wScale);
+            windingsMeshRef.current.rotation.y += 0.003; // Dynamic winding rotation
+            const wMat = windingsMeshRef.current.material as THREE.MeshStandardMaterial;
+            if (selectedLayerId && selectedLayerId !== 'layer-windings') {
+              wMat.opacity = 0.25;
+            } else {
+              wMat.opacity = selectedLayerId === 'layer-windings' ? 1.0 : 0.88;
+            }
+          }
+
+          // 3. Cushion Core Rubber Carcass
+          if (carcassMeshRef.current) {
+            const cScale = 1.0 + curProg * 0.2;
+            carcassMeshRef.current.scale.setScalar(cScale);
+            const cMat = carcassMeshRef.current.material as THREE.MeshStandardMaterial;
+            if (selectedLayerId && selectedLayerId !== 'layer-carcass') {
+              cMat.opacity = 0.3;
+              cMat.transparent = true;
+            } else {
+              cMat.opacity = 1.0;
+              cMat.transparent = false;
+            }
+          }
+
+          // 4. Butyl Bladder Core
+          if (bladderMeshRef.current) {
+            const bScale = 1.0 + curProg * 0.08;
+            bladderMeshRef.current.scale.setScalar(bScale);
+            const bMat = bladderMeshRef.current.material as THREE.MeshStandardMaterial;
+            if (selectedLayerId && selectedLayerId !== 'layer-bladder') {
+              bMat.opacity = 0.35;
+              bMat.transparent = true;
+            } else {
+              bMat.opacity = 1.0;
+              bMat.transparent = false;
+            }
+          }
+        }
+      }
+
+      // Ball Inertia & Dynamic Rotation
       if (assembledBallRef.current && explodedGroupRef.current) {
         if (!isDraggingRef.current) {
-          // Apply velocity decay
-          rotationVelocityRef.current.x *= 0.96;
-          rotationVelocityRef.current.y *= 0.96;
+          // Natural rotational deceleration: dampens scroll surge smoothly back to steady ambient spin
+          rotationVelocityRef.current.x *= 0.94;
+          rotationVelocityRef.current.y *= 0.95;
 
           // Default slow ambient spin when calm
-          if (Math.abs(rotationVelocityRef.current.y) < 0.001) {
-            rotationVelocityRef.current.y = 0.0025;
+          if (Math.abs(rotationVelocityRef.current.y) < 0.003) {
+            rotationVelocityRef.current.y = 0.003;
           }
 
           // If in aerodynamics section, spin based on RPM
@@ -356,11 +443,11 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
         // Bounce Physics Handler
         if (bounceAnimationRef.current.isBouncing) {
           const bounceElapsed = (Date.now() - bounceAnimationRef.current.startTime) / 1000;
-          const bounceDuration = 1.4;
+          const bounceDuration = 1.6;
           if (bounceElapsed < bounceDuration) {
             // Damped harmonic bounce equation
-            const freq = 14;
-            const decay = 3.2;
+            const freq = 13;
+            const decay = 2.8;
             const bounceY = Math.abs(Math.cos(bounceElapsed * freq)) * Math.exp(-bounceElapsed * decay) * 2.8;
             ballPositionRef.current.y = bounceY;
           } else {
@@ -375,13 +462,19 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
         }
 
         if (isPresenting) {
-          // In VR, position ball hovering at comfortable eye-level inspection height (1.25m) right in front of user (z = -1.2m)
           const vrBaseY = 1.25 + ballPositionRef.current.y * 0.4;
           assembledBallRef.current.position.set(0, vrBaseY, -1.2);
           explodedGroupRef.current.position.set(0, vrBaseY, -1.2);
         } else {
-          assembledBallRef.current.position.set(0, ballPositionRef.current.y, 0);
-          explodedGroupRef.current.position.set(0, ballPositionRef.current.y, 0);
+          // Add subtle physical displacement and roll tilt following cursor parallax
+          const posX = px * 0.22;
+          const posY = ballPositionRef.current.y + py * 0.18;
+          assembledBallRef.current.position.set(posX, posY, 0);
+          explodedGroupRef.current.position.set(posX, posY, 0);
+
+          // Subtle roll tilt following parallax
+          assembledBallRef.current.rotation.z = -px * 0.05;
+          explodedGroupRef.current.rotation.z = -px * 0.05;
         }
       }
 
@@ -397,23 +490,19 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
           const count = positions.length / 3;
           for (let i = 0; i < count; i++) {
             const idx = i * 3;
-            // Move along Z towards camera
             positions[idx + 2] += speed;
 
-            // Streamline boundary layer deflection around sphere
             const x = positions[idx];
             const y = positions[idx + 1];
             const z = positions[idx + 2];
             const dist = Math.sqrt(x * x + y * y + z * z);
 
-            // Curve over the sphere if close
             if (dist < 2.8 && dist > 0.1) {
               const pushFactor = (2.8 - dist) * 0.15;
               positions[idx] += (x / dist) * pushFactor;
-              positions[idx + 1] += (y / dist) * pushFactor + spinLift * 0.02; // Magnus lift
+              positions[idx + 1] += (y / dist) * pushFactor + spinLift * 0.02;
             }
 
-            // Loop back when passed
             if (positions[idx + 2] > 6) {
               positions[idx] = originals[idx];
               positions[idx + 1] = originals[idx + 1];
@@ -429,7 +518,7 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
       renderer.render(scene, camera);
     });
 
-    // 9. Resize Observer
+    // 8. Resize Observer
     const handleResize = () => {
       if (!container || !renderer || !camera) return;
       const width = container.clientWidth;
@@ -444,6 +533,8 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     return () => {
       renderer.setAnimationLoop(null);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('wheel', handleGlobalWheel);
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -451,118 +542,16 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     };
   }, []);
 
+  // Accelerate rotation slightly whenever user navigates sections
+  useEffect(() => {
+    rotationVelocityRef.current.y += 0.04;
+  }, [activeSection]);
+
   // Update Textures when Ball Config Changes
   useEffect(() => {
     if (!sceneRef.current) return;
     updateTextures(config);
   }, [config]);
-
-  // Handle Section Transitions & Camera Choreography
-  useEffect(() => {
-    switch (activeSection) {
-      case 'hero':
-        targetCamPos.current.set(0, 0.4, 7.2);
-        targetCamLook.current.set(0, 0, 0);
-        break;
-      case 'deconstruction':
-        targetCamPos.current.set(3.2, 1.2, 8.5);
-        targetCamLook.current.set(0, 0, 0);
-        break;
-      case 'macro':
-        // Macro 10x zoom into top quadrant pebble surface
-        targetCamPos.current.set(0.6, 1.3, 3.4);
-        targetCamLook.current.set(0.2, 0.7, 1.5);
-        break;
-      case 'aerodynamics':
-        // Isometric wind tunnel angle
-        targetCamPos.current.set(-5.5, 2.2, 6.0);
-        targetCamLook.current.set(0, 0, 0);
-        break;
-      case 'customizer':
-        targetCamPos.current.set(1.8, 0.6, 6.8);
-        targetCamLook.current.set(0, 0, 0);
-        break;
-    }
-  }, [activeSection]);
-
-  // Handle Explosion Progress & Layer Highlights
-  useEffect(() => {
-    const isExploded = explosionProgress > 0.02 || activeSection === 'deconstruction';
-
-    if (assembledBallRef.current) {
-      assembledBallRef.current.visible = !isExploded;
-    }
-    if (explodedGroupRef.current) {
-      explodedGroupRef.current.visible = isExploded;
-
-      // Animate explosion distances
-      const progress = explosionProgress;
-
-      // Outer panels expand outward
-      outerPanelsRef.current.forEach((panel, idx) => {
-        const angle = (idx / outerPanelsRef.current.length) * Math.PI * 2;
-        const dir = new THREE.Vector3(
-          Math.cos(angle) * (idx % 2 === 0 ? 1 : 0.8),
-          (idx % 2 === 0 ? 0.7 : -0.7),
-          Math.sin(angle) * (idx % 2 === 0 ? 1 : 0.8)
-        ).normalize();
-
-        const dist = 0.1 + progress * 2.8;
-        panel.position.copy(dir.clone().multiplyScalar(dist));
-        panel.scale.setScalar(1 + progress * 0.12);
-
-        // Dim if other layer is explicitly selected
-        const mat = panel.material as THREE.MeshStandardMaterial;
-        if (selectedLayerId && selectedLayerId !== 'layer-outer') {
-          mat.opacity = 0.35;
-          mat.transparent = true;
-        } else {
-          mat.opacity = 1.0;
-          mat.transparent = false;
-        }
-      });
-
-      // Windings Layer
-      if (windingsMeshRef.current) {
-        const wDist = 0.05 + progress * 1.5;
-        windingsMeshRef.current.scale.setScalar(1 + wDist * 0.25);
-        const wMat = windingsMeshRef.current.material as THREE.MeshStandardMaterial;
-        if (selectedLayerId && selectedLayerId !== 'layer-windings') {
-          wMat.opacity = 0.3;
-          wMat.transparent = true;
-        } else {
-          wMat.opacity = selectedLayerId === 'layer-windings' ? 1.0 : 0.85;
-          wMat.transparent = true;
-        }
-      }
-
-      // Carcass Layer
-      if (carcassMeshRef.current) {
-        const cDist = 0.02 + progress * 0.75;
-        carcassMeshRef.current.scale.setScalar(1 + cDist * 0.2);
-        const cMat = carcassMeshRef.current.material as THREE.MeshStandardMaterial;
-        if (selectedLayerId && selectedLayerId !== 'layer-carcass') {
-          cMat.opacity = 0.35;
-          cMat.transparent = true;
-        } else {
-          cMat.opacity = 1.0;
-          cMat.transparent = false;
-        }
-      }
-
-      // Bladder Core
-      if (bladderMeshRef.current) {
-        const bMat = bladderMeshRef.current.material as THREE.MeshStandardMaterial;
-        if (selectedLayerId && selectedLayerId !== 'layer-bladder') {
-          bMat.opacity = 0.45;
-          bMat.transparent = true;
-        } else {
-          bMat.opacity = 1.0;
-          bMat.transparent = false;
-        }
-      }
-    }
-  }, [explosionProgress, activeSection, selectedLayerId]);
 
   // Lighting Preset Switcher
   useEffect(() => {
@@ -637,7 +626,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
 
   // Helper: Build the complete 3D models and materials
   const buildBasketballMesh = (scene: THREE.Scene, ballConf: BallConfig) => {
-    // Generate Procedural Textures
     const tex = generateBasketballTextures(ballConf);
     const nylonTex = generateNylonWindingTexture();
     const bladderTex = generateBladderTexture();
@@ -670,7 +658,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     outerPanelsRef.current = [];
     const panelCount = 6;
     for (let i = 0; i < panelCount; i++) {
-      // Create curved spherical sector
       const phiStart = (i / panelCount) * Math.PI * 2;
       const phiLength = (Math.PI * 2) / panelCount * 0.88;
       const thetaStart = i % 2 === 0 ? 0.15 : Math.PI * 0.35;
@@ -777,7 +764,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
 
     for (let i = 0; i < particleCount; i++) {
       const idx = i * 3;
-      // Grid around sphere
       const x = (Math.random() - 0.5) * 6;
       const y = (Math.random() - 0.5) * 4;
       const z = -6 + Math.random() * 12;
@@ -790,7 +776,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
       originals[idx + 1] = y;
       originals[idx + 2] = -6;
 
-      // Cyan to Gold Streamline gradient
       const isFast = Math.random() > 0.5;
       colors[idx] = isFast ? 0.83 : 0.22;
       colors[idx + 1] = isFast ? 0.68 : 0.74;
@@ -842,7 +827,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
 
     previousMousePositionRef.current = { x: e.clientX, y: e.clientY };
 
-    // Play subtle whoosh sound if dragged rapidly
     if (Math.abs(deltaX) + Math.abs(deltaY) > 25) {
       sound.playWhoosh();
     }
@@ -851,15 +835,6 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
   const handlePointerUp = () => {
     isDraggingRef.current = false;
   };
-
-  // Trigger Bounce Animation with Sound
-  const triggerBounce = useCallback(() => {
-    bounceAnimationRef.current = {
-      isBouncing: true,
-      startTime: Date.now(),
-    };
-    sound.playBounce(0.9);
-  }, []);
 
   return (
     <div
@@ -873,24 +848,13 @@ export const BasketballCanvas: React.FC<BasketballCanvasProps> = ({
     >
       {/* Loading Screen Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B0B0C] z-30">
-          <div className="w-12 h-12 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-xs font-mono-tech text-neutral-400 uppercase tracking-widest">
-            Compiling WebGL Shaders & Textures...
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#121316] z-30">
+          <div className="w-10 h-10 border-2 border-white border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-xs font-mono-tech text-[#C4C6D4] uppercase tracking-widest">
+            Compiling WebGL Shaders & Constructing Mesh...
           </p>
         </div>
       )}
-
-      {/* Floating 3D Interaction Hints */}
-      <div className="absolute bottom-6 left-6 z-10 pointer-events-none hidden sm:flex items-center gap-3">
-        <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-mono-tech text-neutral-400 flex items-center gap-2 shadow-lg">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          DRAG TO ROTATE 360°
-        </div>
-        <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-mono-tech text-[#D4AF37] flex items-center gap-1.5 shadow-lg">
-          <span>60 FPS WEBGL</span>
-        </div>
-      </div>
     </div>
   );
 };

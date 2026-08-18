@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { BallConfig } from '../types';
-import { Eye, SunMedium, Target, Droplets } from 'lucide-react';
+import { BallConfig, ThemeMode } from '../types';
+import { Eye } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { sound } from '../utils/audio';
@@ -10,17 +10,18 @@ gsap.registerPlugin(ScrollTrigger);
 interface MacroGrainSectionProps {
   config: BallConfig;
   onUpdateConfig: (updated: Partial<BallConfig>) => void;
-  macroLightAngle: number;
-  onMacroLightAngleChange: (angle: number) => void;
+  macroLightAngle?: number;
+  onMacroLightAngleChange?: (angle: number) => void;
+  themeMode?: ThemeMode;
 }
 
 export const MacroGrainSection: React.FC<MacroGrainSectionProps> = ({
   config,
   onUpdateConfig,
-  macroLightAngle,
-  onMacroLightAngleChange,
+  themeMode = 'day',
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const isNight = themeMode === 'night';
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -36,100 +37,114 @@ export const MacroGrainSection: React.FC<MacroGrainSectionProps> = ({
         '.macro-header > *',
         { y: 30, opacity: 0 },
         { y: 0, opacity: 1, duration: 0.8, stagger: 0.12, ease: 'power3.out' }
-      )
-        .fromTo(
-          '.macro-slider-card',
-          { scale: 0.95, opacity: 0, y: 20 },
-          { scale: 1, opacity: 1, y: 0, duration: 0.7, ease: 'power2.out' },
-          '-=0.4'
-        )
-        .fromTo(
-          '.macro-metric-card',
-          { y: 35, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power3.out' },
-          '-=0.5'
-        );
+      ).fromTo(
+        '.macro-data-item',
+        { y: 25, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, stagger: 0.08, ease: 'power2.out' },
+        '-=0.4'
+      );
     }, sectionRef);
 
     return () => ctx.revert();
   }, []);
 
+  const presets = [
+    { id: 'fiba', label: 'FIBA TOUR SPEC', pebbles: '18,400 PEBBLES', depth: 0.85 },
+    { id: 'nba', label: 'NBA MATCH SPEC', pebbles: '19,200 PEBBLES', depth: 0.95 },
+    { id: 'custom', label: 'ULTRA TACTILE', pebbles: '21,000 PEBBLES', depth: 1.1 },
+  ];
+
   return (
     <section
       ref={sectionRef}
       id="macro"
-      className="relative w-full min-h-screen flex flex-col lg:flex-row lg:items-start justify-between gap-10 pt-28 pb-20 px-6 sm:px-12 pointer-events-none"
+      className="relative w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-16 lg:gap-28 xl:gap-36 px-8 sm:px-14 lg:px-20 pointer-events-none"
     >
-      {/* Header & Concept */}
-      <div className="macro-header max-w-xl pointer-events-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/40 border border-black/10 backdrop-blur-md mb-5">
-          <Eye className="w-3.5 h-3.5 text-[#121316]" />
-          <span className="font-mono-tech text-[10px] text-[#121316] tracking-[0.25em] font-semibold uppercase">
-            03 // 10X MACRO INSPECTION
+      {/* 1. Header & Technical Concept (Directly on site) */}
+      <div className="macro-header max-w-lg pointer-events-auto">
+        <div className="inline-flex items-center gap-2 mb-3">
+          <Eye className="w-4 h-4 text-sky-400" />
+          <span className={`font-mono-tech text-[10px] tracking-[0.25em] font-bold uppercase ${
+            isNight ? 'text-sky-400' : 'text-sky-700'
+          }`}>
+            03 // 10X TOPOGRAPHIC GRAIN
           </span>
         </div>
 
-        <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-[#121316] leading-none mb-3 font-display">
+        <h2 className={`text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-none mb-4 font-display ${
+          isNight ? 'text-white' : 'text-[#121316]'
+        }`}>
           GRIP & <br />
           MICRO-GRAIN
         </h2>
 
-        <p className="text-[#555760] text-xs sm:text-sm leading-relaxed max-w-md font-mono-tech mb-6">
-          High-magnification surface topography analysis. Shifting directional lighting reveals individual pebble domes, recessed composite seams, and moisture-dissipating micro-pores.
+        <p className={`text-xs sm:text-sm leading-relaxed max-w-md font-mono-tech mb-6 ${
+          isNight ? 'text-[#D0D2DE]' : 'text-[#444650]'
+        }`}>
+          Laser-sculpted pebble geometry engineered for optimal kinetic friction. Thousands of micro-domes and recessed capillary channels immediately wick perspiration to prevent ball slippage under high-torque releases.
         </p>
 
-        {/* Dynamic Light Sweep Orbital Controller */}
-        <div className="macro-slider-card p-5 rounded-xl bg-white/45 backdrop-blur-md border border-black/10 max-w-md mb-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <SunMedium className="w-4 h-4 text-[#121316]" />
-              <span className="font-mono-tech text-[11px] font-bold text-[#121316] uppercase tracking-[0.2em]">
-                LIGHT ORBIT ANGLE
-              </span>
-            </div>
-            <span className="font-mono-tech text-xs text-[#121316] font-bold">
-              {macroLightAngle}°
+        {/* Live Surface Spec Breakdown directly on site (No card) */}
+        <div className="flex items-center gap-6 pt-2 border-t border-black/10 dark:border-white/10 font-mono-tech text-xs">
+          <div className="flex flex-col">
+            <span className={`text-[9px] uppercase tracking-wider ${
+              isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+            }`}>
+              FRICTION COEFF
+            </span>
+            <span className={`text-base font-bold text-sky-400`}>
+              0.88 μ TACTILE
             </span>
           </div>
 
-          <input
-            id="macro-light-slider"
-            type="range"
-            min="0"
-            max="360"
-            step="1"
-            value={macroLightAngle}
-            onChange={(e) => onMacroLightAngleChange(parseInt(e.target.value))}
-            className="w-full h-1.5 bg-[#C2C2C8] rounded-lg appearance-none cursor-pointer accent-[#121316]"
-          />
+          <div className="w-[1px] h-8 bg-black/10 dark:bg-white/10" />
 
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-black/10 text-[10px] font-mono-tech text-[#787A84] uppercase">
-            <span>RAKING (0°)</span>
-            <span>TOP (90°)</span>
-            <span>OBLIQUE (180°)</span>
-            <span>BACK (270°)</span>
+          <div className="flex flex-col">
+            <span className={`text-[9px] uppercase tracking-wider ${
+              isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+            }`}>
+              CHANNEL DEPTH
+            </span>
+            <span className={`text-base font-bold ${isNight ? 'text-white' : 'text-[#121316]'}`}>
+              1.20 MM RECESSED
+            </span>
+          </div>
+
+          <div className="w-[1px] h-8 bg-black/10 dark:bg-white/10" />
+
+          <div className="flex flex-col">
+            <span className={`text-[9px] uppercase tracking-wider ${
+              isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+            }`}>
+              EVAP SPEED
+            </span>
+            <span className={`text-base font-bold text-emerald-400`}>
+              0.08 S / CM²
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Surface Metric Cards */}
-      <div className="w-full lg:max-w-md lg:ml-auto space-y-4 pointer-events-auto">
-        <div className="macro-metric-card p-5 rounded-xl bg-white/45 backdrop-blur-md border border-black/10 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="font-mono-tech text-[10px] uppercase text-[#787A84] tracking-[0.2em] font-semibold">
-              TACTILE PEBBLE DENSITY
-            </span>
-            <span className="font-mono-tech text-[10px] text-[#121316] font-bold">
-              {config.gripDensity.toUpperCase()} SPEC
-            </span>
-          </div>
+      {/* 2. Micro-Grain Density Presets & Metrics Presented Directly on Site with Enlarged Spacing */}
+      <div className="w-full lg:max-w-lg lg:ml-auto pointer-events-auto font-mono-tech select-none space-y-6">
+        <div className="flex items-center justify-between pb-2 border-b border-black/10 dark:border-white/10">
+          <span className={`text-[11px] font-bold uppercase tracking-[0.25em] ${
+            isNight ? 'text-[#C4C6D4]' : 'text-[#444650]'
+          }`}>
+            PEBBLE DENSITY CONFIGURATION
+          </span>
+          <span className={`text-[10px] font-bold uppercase ${
+            isNight ? 'text-white' : 'text-[#121316]'
+          }`}>
+            CURRENT // {config.gripDensity.toUpperCase()}
+          </span>
+        </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: 'fiba', label: 'FIBA TOUR', pebbles: '18.4K', depth: 0.85 },
-              { id: 'nba', label: 'NBA SPEC', pebbles: '19.2K', depth: 0.95 },
-              { id: 'custom', label: 'ULTRA GRIP', pebbles: '21.0K', depth: 1.1 },
-            ].map((preset) => (
+        {/* Presets List directly on site without card borders */}
+        <div className="flex flex-col gap-2.5">
+          {presets.map((preset) => {
+            const isSelected = config.gripDensity === preset.id;
+            return (
               <button
                 key={preset.id}
                 id={`grip-preset-${preset.id}`}
@@ -140,62 +155,57 @@ export const MacroGrainSection: React.FC<MacroGrainSectionProps> = ({
                     pebbleDepth: preset.depth,
                   });
                 }}
-                className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
-                  config.gripDensity === preset.id
-                    ? 'bg-[#121316] text-[#BEBEC6] border-[#121316] shadow-sm scale-[1.02]'
-                    : 'bg-white/40 text-[#555760] border-black/10 hover:border-black/30'
+                className={`macro-data-item group flex items-center justify-between p-3 transition-all cursor-pointer text-left border-b ${
+                  isSelected
+                    ? isNight
+                      ? 'border-white text-white font-bold pl-4 bg-white/5'
+                      : 'border-[#121316] text-[#121316] font-bold pl-4 bg-black/5'
+                    : isNight
+                    ? 'border-white/10 text-white/70 hover:text-white hover:border-white/30'
+                    : 'border-black/10 text-[#121316]/70 hover:text-[#121316] hover:border-black/30'
                 }`}
               >
-                <span className="block font-mono-tech text-[9px] font-bold tracking-wider uppercase mb-1">
-                  {preset.label}
-                </span>
-                <span className="block font-mono-tech text-xs font-extrabold">
+                <div className="flex items-center gap-3">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isSelected ? 'bg-sky-400' : 'bg-transparent border border-current'
+                  }`} />
+                  <span className="text-xs uppercase tracking-wider">
+                    {preset.label}
+                  </span>
+                </div>
+
+                <span className={`text-xs font-bold ${
+                  isSelected ? (isNight ? 'text-sky-300' : 'text-sky-700') : 'opacity-60'
+                }`}>
                   {preset.pebbles}
                 </span>
               </button>
-            ))}
-          </div>
-
-          <div className="p-3.5 rounded-lg bg-black/5 border border-black/5 space-y-2 text-xs font-mono-tech">
-            <div className="flex justify-between text-[#555760]">
-              <span>MICRO-CHANNEL DEPTH</span>
-              <span className="font-bold text-[#121316]">1.20 MM RECESSED</span>
-            </div>
-            <div className="flex justify-between text-[#555760]">
-              <span>HYDROPHOBIC EVAP RATE</span>
-              <span className="font-bold text-[#121316]">0.08 SEC / CM²</span>
-            </div>
-            <div className="flex justify-between text-[#555760]">
-              <span>PEBBLE DIAMETER</span>
-              <span className="font-bold text-[#121316]">0.75 MM CONVEX</span>
-            </div>
-          </div>
+            );
+          })}
         </div>
 
-        {/* Tactile Highlights Card */}
-        <div className="macro-metric-card grid grid-cols-2 gap-3">
-          <div className="p-4 rounded-xl bg-white/45 backdrop-blur-md border border-black/10 shadow-sm flex items-start gap-3">
-            <Target className="w-4 h-4 text-[#121316] mt-0.5" />
-            <div>
-              <span className="block font-mono-tech text-[9px] uppercase text-[#787A84] font-semibold">
-                SEAM ALIGNMENT
-              </span>
-              <span className="font-mono-tech text-xs font-bold text-[#121316]">
-                ±0.05mm CNC
-              </span>
-            </div>
+        {/* Micro-Grain Geometric Readout Footnote directly on site */}
+        <div className="macro-data-item grid grid-cols-2 gap-8 pt-2">
+          <div className="flex flex-col">
+            <span className={`text-[9px] uppercase tracking-widest ${
+              isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+            }`}>
+              PEBBLE DIAMETER
+            </span>
+            <span className={`text-xl font-bold font-display ${isNight ? 'text-white' : 'text-[#121316]'}`}>
+              0.75 MM CONVEX
+            </span>
           </div>
 
-          <div className="p-4 rounded-xl bg-white/45 backdrop-blur-md border border-black/10 shadow-sm flex items-start gap-3">
-            <Droplets className="w-4 h-4 text-[#121316] mt-0.5" />
-            <div>
-              <span className="block font-mono-tech text-[9px] uppercase text-[#787A84] font-semibold">
-                SWEAT RESISTANCE
-              </span>
-              <span className="font-mono-tech text-xs font-bold text-[#121316]">
-                ISO 4920: 100
-              </span>
-            </div>
+          <div className="flex flex-col">
+            <span className={`text-[9px] uppercase tracking-widest ${
+              isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+            }`}>
+              SURFACE HYDROPHOBIA
+            </span>
+            <span className="text-xl font-bold font-display text-emerald-400">
+              CLASS 1 REPELLENT
+            </span>
           </div>
         </div>
       </div>

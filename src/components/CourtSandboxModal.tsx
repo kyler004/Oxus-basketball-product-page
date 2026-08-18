@@ -329,7 +329,7 @@ export const CourtSandboxModal: React.FC<CourtSandboxModalProps> = ({
               <span className="text-[#D4AF37] font-bold text-sm">{score} / {attempts}</span>
             </div>
             {streak >= 2 && (
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono-tech text-xs font-bold animate-pulse">
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono-tech text-xs font-bold">
                 <Flame className="w-3.5 h-3.5" />
                 <span>{streak} STREAK</span>
               </div>

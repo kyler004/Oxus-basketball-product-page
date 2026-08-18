@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { BallConfig, BallEdition } from '../types';
+import { BallConfig, BallEdition, ThemeMode } from '../types';
 import { Sparkles, ShieldCheck } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -13,13 +13,16 @@ interface CustomizerStudioProps {
   onCaptureSnapshot?: () => void;
   snapshotDataUrl?: string | null;
   onCloseSnapshotModal?: () => void;
+  themeMode?: ThemeMode;
 }
 
 export const CustomizerStudio: React.FC<CustomizerStudioProps> = ({
   config,
   onUpdateConfig,
+  themeMode = 'day',
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const isNight = themeMode === 'night';
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -36,9 +39,9 @@ export const CustomizerStudio: React.FC<CustomizerStudioProps> = ({
         { y: 30, opacity: 0 },
         { y: 0, opacity: 1, duration: 0.8, stagger: 0.12, ease: 'power3.out' }
       ).fromTo(
-        '.studio-edition-card',
+        '.studio-edition-row',
         { x: 30, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power3.out' },
+        { x: 0, opacity: 1, duration: 0.6, stagger: 0.08, ease: 'power3.out' },
         '-=0.4'
       );
     }, sectionRef);
@@ -46,7 +49,6 @@ export const CustomizerStudio: React.FC<CustomizerStudioProps> = ({
     return () => ctx.revert();
   }, []);
 
-  // Editions list with authentic basketball leather finishes
   const editions: {
     id: BallEdition;
     name: string;
@@ -62,7 +64,7 @@ export const CustomizerStudio: React.FC<CustomizerStudioProps> = ({
       name: 'Heritage Amber Clay',
       leatherColor: '#D45B10',
       secondaryColor: '#94380E',
-      description: 'Original cured regulation composite with high-friction moisture-wicking micro-pores and signature hardwood amber clay tone.',
+      description: 'Original cured regulation composite with high-friction micro-pores and classic hardwood amber tone.',
       seamColor: '#121316',
       seamMetalness: 0.1,
       serial: 'ED-01 / 500',
@@ -125,83 +127,103 @@ export const CustomizerStudio: React.FC<CustomizerStudioProps> = ({
     <section
       ref={sectionRef}
       id="bespoke"
-      className="relative w-full min-h-screen flex flex-col lg:flex-row lg:items-start justify-between gap-10 pt-28 pb-20 px-6 sm:px-12 pointer-events-none"
+      className="relative w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-16 lg:gap-28 xl:gap-36 px-8 sm:px-14 lg:px-20 pointer-events-none"
     >
-      {/* Studio Presentation Header */}
-      <div className="studio-header max-w-xl pointer-events-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/40 border border-black/10 backdrop-blur-md mb-5">
-          <Sparkles className="w-3.5 h-3.5 text-[#121316]" />
-          <span className="font-mono-tech text-[10px] text-[#121316] tracking-[0.25em] font-semibold uppercase">
-            05 // BESPOKE LAB EDITIONS
+      {/* 1. Studio Header (Directly on site) */}
+      <div className="studio-header max-w-lg pointer-events-auto">
+        <div className="inline-flex items-center gap-2 mb-3">
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          <span className={`font-mono-tech text-[10px] tracking-[0.25em] font-bold uppercase ${
+            isNight ? 'text-purple-300' : 'text-purple-700'
+          }`}>
+            05 // BESPOKE LAB CALIBRATION
           </span>
         </div>
 
-        <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-[#121316] leading-none mb-3 font-display">
+        <h2 className={`text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-none mb-4 font-display ${
+          isNight ? 'text-white' : 'text-[#121316]'
+        }`}>
           BESPOKE <br />
           LAB SPEC
         </h2>
 
-        <p className="text-[#555760] text-xs sm:text-sm leading-relaxed max-w-md font-mono-tech mb-6">
+        <p className={`text-xs sm:text-sm leading-relaxed max-w-md font-mono-tech mb-6 ${
+          isNight ? 'text-[#D0D2DE]' : 'text-[#444650]'
+        }`}>
           Curated regulation sphere series. Hand-cured leather finishes, precision metallic seam inlays, and hot-stamp laser serial monograms engineered for professional court kinematics.
         </p>
 
-        <div className="p-4 rounded-xl bg-white/40 border border-black/10 max-w-md space-y-2 font-mono-tech text-xs">
-          <div className="flex items-center gap-2 text-emerald-800 text-[11px] font-semibold">
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>FIBA & NBA Official Calibration Certification</span>
-          </div>
-          <p className="text-[10px] text-[#555760] leading-relaxed">
-            Each spherical unit is individually laser-scanned for dynamic mass symmetry and inflated with 8.0 PSI pure nitrogen.
-          </p>
+        {/* Certification Note directly on site (No card) */}
+        <div className="flex items-center gap-2 pt-2 border-t border-black/10 dark:border-white/10 text-emerald-400 font-mono-tech text-xs">
+          <ShieldCheck className="w-4 h-4 shrink-0" />
+          <span>FIBA & NBA Official Calibration Certification // 8.0 PSI Pure Nitrogen</span>
         </div>
       </div>
 
-      {/* Bespoke Editions Showcase (Right side) */}
-      <div className="w-full lg:max-w-lg lg:ml-auto space-y-2.5 pointer-events-auto">
-        <div className="flex items-center justify-between px-1 mb-1">
-          <span className="font-mono-tech text-[10px] uppercase text-[#787A84] tracking-[0.2em] font-semibold">
-            SELECT PRESENTATION FINISH ({editions.length} EDITIONS)
+      {/* 2. Editions List Presented Directly on Site with Enlarged Spacing */}
+      <div className="w-full lg:max-w-lg lg:ml-auto pointer-events-auto font-mono-tech select-none space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-black/10 dark:border-white/10">
+          <span className={`text-[11px] font-bold uppercase tracking-[0.25em] ${
+            isNight ? 'text-[#C4C6D4]' : 'text-[#444650]'
+          }`}>
+            FINISH EDITIONS ({editions.length})
+          </span>
+          <span className={`text-[10px] font-bold uppercase ${
+            isNight ? 'text-white' : 'text-[#121316]'
+          }`}>
+            ACTIVE // {config.leatherName}
           </span>
         </div>
 
-        {editions.map((ed) => {
-          const isSelected = config.edition === ed.id;
-          return (
-            <div
-              key={ed.id}
-              id={`edition-item-${ed.id}`}
-              onClick={() => handleSelectEdition(ed)}
-              className={`studio-edition-card p-4 rounded-xl border flex items-center justify-between gap-3 transition-all duration-200 cursor-pointer ${
-                isSelected
-                  ? 'bg-white/70 border-[#121316] shadow-md scale-[1.01]'
-                  : 'bg-white/35 hover:bg-white/50 border-black/10'
-              }`}
-            >
-              <div className="flex items-center gap-3.5">
-                <div
-                  className="w-9 h-9 rounded-full border border-black/15 shadow-sm shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${ed.leatherColor}, ${ed.secondaryColor})`,
-                  }}
-                />
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-[#121316]">
-                    {ed.name}
-                  </h4>
-                  <p className="text-[11px] text-[#555760] font-mono-tech line-clamp-1 max-w-[240px]">
-                    {ed.description}
-                  </p>
+        {/* Edition Rows */}
+        <div className="flex flex-col gap-2">
+          {editions.map((ed) => {
+            const isSelected = config.edition === ed.id;
+            return (
+              <div
+                key={ed.id}
+                id={`edition-row-${ed.id}`}
+                onClick={() => handleSelectEdition(ed)}
+                className={`studio-edition-row group flex items-center justify-between gap-4 p-3 transition-all duration-200 cursor-pointer border-b ${
+                  isSelected
+                    ? isNight
+                      ? 'border-white text-white font-bold pl-4 bg-white/5'
+                      : 'border-[#121316] text-[#121316] font-bold pl-4 bg-black/5'
+                    : isNight
+                    ? 'border-white/10 text-white/70 hover:text-white hover:border-white/30'
+                    : 'border-black/10 text-[#121316]/70 hover:text-[#121316] hover:border-black/30'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-6 h-6 rounded-full border border-black/20 shrink-0 shadow-sm"
+                    style={{
+                      background: `linear-gradient(135deg, ${ed.leatherColor}, ${ed.secondaryColor})`,
+                    }}
+                  />
+                  <div>
+                    <h4 className="text-xs uppercase tracking-wider">
+                      {ed.name}
+                    </h4>
+                    <p className={`text-[9px] line-clamp-1 max-w-[280px] ${
+                      isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+                    }`}>
+                      {ed.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="text-right shrink-0">
-                <span className="px-2 py-0.5 rounded bg-black/5 text-[9px] font-mono-tech text-[#121316] font-bold border border-black/5">
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                  isSelected
+                    ? isNight ? 'bg-white text-[#121316]' : 'bg-[#121316] text-white'
+                    : isNight ? 'bg-white/10 text-white' : 'bg-black/5 text-[#121316]'
+                }`}>
                   {ed.serial}
                 </span>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </section>
   );

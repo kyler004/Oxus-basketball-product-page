@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Bookmark, ShoppingBag, Activity, Disc3, ChevronDown } from 'lucide-react';
+import { Layers, Activity, Disc3 } from 'lucide-react';
 import { ThemeMode } from '../types';
 import gsap from 'gsap';
 import { sound } from '../utils/audio';
@@ -7,53 +7,44 @@ import { sound } from '../utils/audio';
 interface HeroSectionProps {
   onExploreAnatomy: () => void;
   onOpenCustomizer: () => void;
+  onNavigateToSection?: (sectionId: string) => void;
   onBounceBall: () => void;
   onSpinBall: () => void;
+  explosionProgress?: number;
+  onToggleConstruct?: () => void;
   themeMode?: ThemeMode;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
   onExploreAnatomy,
-  onOpenCustomizer,
   onBounceBall,
   onSpinBall,
+  explosionProgress = 0,
+  onToggleConstruct,
   themeMode = 'day',
 }) => {
   const heroRef = useRef<HTMLDivElement>(null);
   const isNight = themeMode === 'night';
+  const isDeconstructed = explosionProgress > 0.1;
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // 1. Watermarks subtle float and entrance
+      // 1. Giant Kinetic Background Watermark (Scales smoothly and floats gently)
       gsap.fromTo(
-        '.hero-watermark-top',
-        { y: 30, opacity: 0 },
-        { y: 0, opacity: 0.4, duration: 1.6, ease: 'power3.out' }
+        '.hero-watermark-kinetic',
+        { scale: 0.94, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 1.6, ease: 'power3.out' }
       );
-      gsap.to('.hero-watermark-top', {
+      gsap.to('.hero-watermark-kinetic', {
         y: -10,
-        duration: 5,
+        duration: 6,
         repeat: -1,
         yoyo: true,
         ease: 'sine.inOut',
         delay: 1.6,
       });
 
-      gsap.fromTo(
-        '.hero-watermark-bottom',
-        { y: -30, opacity: 0 },
-        { y: 0, opacity: 0.3, duration: 1.6, ease: 'power3.out', delay: 0.2 }
-      );
-      gsap.to('.hero-watermark-bottom', {
-        y: 10,
-        duration: 6,
-        repeat: -1,
-        yoyo: true,
-        ease: 'sine.inOut',
-        delay: 1.8,
-      });
-
-      // 2. Headline and technical tagline staggered drop-in
+      // 2. Headline & Foreground Elements Entrance
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
       tl.fromTo(
@@ -62,354 +53,256 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         { y: 0, opacity: 1, duration: 0.8, delay: 0.1 }
       )
         .fromTo(
-          '.hero-title',
-          { y: 25, opacity: 0, scale: 0.96 },
-          { y: 0, opacity: 1, scale: 1, duration: 1 },
-          '-=0.5'
+          '.hero-foreground-pie',
+          { scale: 0.85, opacity: 0, rotate: -20 },
+          { scale: 1, opacity: 1, rotate: 0, duration: 1.2, ease: 'back.out(1.2)' },
+          '-=0.4'
         )
         .fromTo(
-          '.hero-tagline',
-          { y: 15, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.8 },
-          '-=0.6'
+          '.hero-action-btn',
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out' },
+          '-=0.4'
         );
-
-      // 3. Left category menu staggered slide-in
-      gsap.fromTo(
-        '.hero-left-menu li',
-        { x: -30, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.7,
-          stagger: 0.08,
-          ease: 'power2.out',
-          delay: 0.4,
-        }
-      );
-
-      gsap.fromTo(
-        '.hero-id-matrix',
-        { opacity: 0 },
-        { opacity: 1, duration: 0.9, delay: 1 }
-      );
-
-      // 4. Right customization HUD slide-in & swatches pop
-      gsap.fromTo(
-        '.hero-right-hud',
-        { x: 30, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.9, ease: 'power2.out', delay: 0.5 }
-      );
-
-      gsap.fromTo(
-        '.hero-swatch',
-        { scale: 0, opacity: 0 },
-        {
-          scale: 1,
-          opacity: 1,
-          duration: 0.5,
-          stagger: 0.08,
-          ease: 'back.out(2)',
-          delay: 0.8,
-        }
-      );
-
-      // 5. Bottom action buttons bounce-in
-      gsap.fromTo(
-        '.hero-action-btn',
-        { y: 25, opacity: 0, scale: 0.9 },
-        {
-          y: 0,
-          opacity: 1,
-          scale: 1,
-          duration: 0.7,
-          stagger: 0.1,
-          ease: 'back.out(1.5)',
-          delay: 0.9,
-        }
-      );
-
-      gsap.fromTo(
-        '.hero-scroll-cue',
-        { opacity: 0, y: -8 },
-        { opacity: 1, y: 0, duration: 0.8, delay: 1.3 }
-      );
     }, heroRef);
 
     return () => ctx.revert();
   }, []);
 
+  const handleToggle = () => {
+    sound.playMetallicClick();
+    if (onToggleConstruct) {
+      onToggleConstruct();
+    } else {
+      onExploreAnatomy();
+    }
+  };
+
   return (
     <section
       ref={heroRef}
       id="overview"
-      className="relative w-full min-h-screen flex flex-col justify-between pt-24 pb-10 px-6 sm:px-12 pointer-events-none"
+      className="relative w-full h-full max-w-[1440px] mx-auto flex flex-col justify-between pt-24 pb-12 px-8 sm:px-14 lg:px-20 pointer-events-none"
     >
-      {/* Giant Faded Typographic Watermarks matching reference image */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden flex flex-col items-center justify-between py-16 z-0 select-none">
-        {/* Top Watermark */}
-        <span className="hero-watermark-top tactical-watermark text-5xl sm:text-7xl lg:text-9xl tracking-tight opacity-40 font-display">
-          Regulation 29.5"
-        </span>
-
-        {/* Bottom Watermark */}
-        <div className="hero-watermark-bottom flex flex-col items-center">
-          <span className="tactical-watermark text-4xl sm:text-6xl lg:text-8xl tracking-tight opacity-30 font-display">
-            Court Kinetic
-          </span>
-          <span className="tactical-watermark text-3xl sm:text-5xl lg:text-7xl tracking-tight opacity-25 font-display -mt-4">
-            FIBA Level 1
-          </span>
-        </div>
+      {/* 1. Monumental Background Text - Scaled with a calibrated SVG so the entire word KINETIC always appears 100% in full without clipping */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-0 select-none px-6 sm:px-12 overflow-hidden">
+        <svg
+          viewBox="0 0 1000 200"
+          className={`hero-watermark-kinetic w-full max-w-4xl sm:max-w-5xl lg:max-w-6xl h-auto transition-colors duration-500 select-none ${
+            isNight ? 'text-white/[0.08]' : 'text-[#121316]/[0.08]'
+          }`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <text
+            x="500"
+            y="145"
+            textAnchor="middle"
+            fill="currentColor"
+            className="font-display font-black uppercase tracking-wider"
+            style={{
+              fontSize: '150px',
+              fontWeight: 900,
+              letterSpacing: '0.06em',
+            }}
+          >
+            KINETIC
+          </text>
+        </svg>
       </div>
 
-      {/* Main Centerpiece Headline */}
-      <div className="relative z-10 text-center max-w-2xl mx-auto pt-6 pointer-events-auto">
-        <p className={`hero-badge text-[11px] sm:text-xs font-mono-tech tracking-[0.25em] uppercase mb-2 ${
-          isNight ? 'text-[#A0A2B0]' : 'text-[#6B6D76]'
-        }`}>
-          \ FIBA REGULATION 29.5" \ NBA MATCH CALIBRATION \ 8.0 PSI NITROGEN \
-        </p>
-
-        <h1 className={`hero-title text-5xl sm:text-7xl lg:text-8xl font-extrabold tracking-tight leading-none mb-3 font-display ${
-          isNight ? 'text-white' : 'text-[#121316]'
-        }`}>
-          Kinetic Sphere
-        </h1>
-
-        <p className={`hero-tagline text-xs sm:text-sm font-mono-tech tracking-wider uppercase max-w-lg mx-auto ${
-          isNight ? 'text-[#B0B2BE]' : 'text-[#555760]'
-        }`}>
-          Tactile micro-grain composite // Concentric Polyamide geodesic windings
-        </p>
-      </div>
-
-      {/* Left Column Technical Menu & Right Column Customization Preview */}
-      <div className="relative z-10 flex flex-col md:flex-row items-end md:items-center justify-between gap-8 w-full my-auto pointer-events-none">
-        {/* Left Side: Technical Category Hierarchy */}
-        <div className="pointer-events-auto space-y-4 max-w-xs">
-          <span className={`block text-[10px] font-mono-tech uppercase tracking-[0.2em] font-semibold ${
-            isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'
-          }`}>
-            BALLISTICS / SPEC
-          </span>
-
-          <ul className={`hero-left-menu space-y-2.5 text-xs font-mono-tech tracking-wider ${
-            isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'
-          }`}>
-            <li className={`hover:${isNight ? 'text-white' : 'text-[#121316]'} transition-colors cursor-pointer`} onClick={onExploreAnatomy}>
-              FULL-GRAIN LEATHER
-            </li>
-            <li className={`${isNight ? 'text-white' : 'text-[#121316]'} font-bold flex items-center gap-1.5 cursor-pointer`} onClick={onExploreAnatomy}>
-              <span className="text-sm font-bold">|</span> PEBBLE MATRIX
-            </li>
-            <li className={`hover:${isNight ? 'text-white' : 'text-[#121316]'} transition-colors cursor-pointer`} onClick={onExploreAnatomy}>
-              SEAM CHANNELS
-            </li>
-            <li className={`hover:${isNight ? 'text-white' : 'text-[#121316]'} transition-colors cursor-pointer`} onClick={onExploreAnatomy}>
-              CUSHION CORE
-            </li>
-            <li className={`hover:${isNight ? 'text-white' : 'text-[#121316]'} transition-colors cursor-pointer`} onClick={onExploreAnatomy}>
-              POLYAMIDE WINDINGS
-            </li>
-            <li className={`hover:${isNight ? 'text-white' : 'text-[#121316]'} transition-colors cursor-pointer`} onClick={onExploreAnatomy}>
-              NITROGEN CHAMBER
-            </li>
-          </ul>
-
-          {/* Dotted ID Matrix */}
-          <div className={`hero-id-matrix pt-4 text-[10px] font-mono-tech flex items-center gap-2 ${
-            isNight ? 'text-[#8E909B]' : 'text-[#8E909B]'
-          }`}>
-            <span className="tracking-widest">::: :::: ID</span>
-            <span>NO. 001 // 500</span>
-          </div>
-        </div>
-
-        {/* Right Side: Quick Customization HUD */}
-        <div className="hero-right-hud pointer-events-auto space-y-4 text-right max-w-xs ml-auto">
-          <span className={`block text-[10px] font-mono-tech uppercase tracking-[0.2em] font-semibold ${
-            isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'
-          }`}>
-            LEATHER / GRAIN
-          </span>
-
-          <h3 className={`text-lg font-bold tracking-tight ${
-            isNight ? 'text-white' : 'text-[#121316]'
-          }`}>
-            Customization
-          </h3>
-
-          {/* Color Swatch Circles */}
-          <div>
-            <span className={`block text-[9px] font-mono-tech uppercase tracking-widest mb-2 ${
-              isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'
-            }`}>
-              SELECT COLOR
-            </span>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => {
-                  sound.playMetallicClick();
-                  onOpenCustomizer();
-                }}
-                title="Heritage Amber Orange"
-                className={`hero-swatch w-6 h-6 rounded-full bg-[#D45B10] border-2 shadow-sm transition-transform hover:scale-110 cursor-pointer ${
-                  isNight ? 'border-white' : 'border-[#121316]'
-                }`}
-              />
-              <button
-                onClick={() => {
-                  sound.playMetallicClick();
-                  onOpenCustomizer();
-                }}
-                title="Tactical Desert Sand"
-                className="hero-swatch w-6 h-6 rounded-full bg-[#C4A478] border border-white/20 transition-transform hover:scale-110 cursor-pointer"
-              />
-              <button
-                onClick={() => {
-                  sound.playMetallicClick();
-                  onOpenCustomizer();
-                }}
-                title="Night Stealth Obsidian"
-                className="hero-swatch w-6 h-6 rounded-full bg-[#1E1F24] border border-white/20 transition-transform hover:scale-110 cursor-pointer"
-              />
-              <button
-                onClick={() => {
-                  sound.playMetallicClick();
-                  onOpenCustomizer();
-                }}
-                title="Coyote Amber Gold"
-                className="hero-swatch w-6 h-6 rounded-full bg-[#968770] border border-white/20 transition-transform hover:scale-110 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Pattern / Spec Circular Selection Badges */}
-          <div>
-            <span className={`block text-[9px] font-mono-tech uppercase tracking-widest mb-2 ${
-              isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'
-            }`}>
-              SELECT SPEC MATRIX
-            </span>
-            <div className="flex flex-wrap justify-end gap-1.5 font-mono-tech text-[10px]">
-              {['29.5', 'FIBA', 'NBA', '8.0', '18K', 'CNC'].map((code) => (
-                <button
-                  key={code}
-                  onClick={() => {
-                    sound.playMetallicClick();
-                    onOpenCustomizer();
-                  }}
-                  className={`hero-swatch w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
-                    code === '29.5'
-                      ? isNight
-                        ? 'bg-white text-[#121316] font-bold border-white'
-                        : 'bg-[#121316] text-[#BEBEC6] font-bold border-[#121316]'
-                      : isNight
-                      ? 'bg-white/10 text-white/80 border-white/15 hover:border-white/40'
-                      : 'bg-white/40 text-[#555760] border-black/10 hover:border-black/30'
-                  }`}
-                >
-                  {code}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Open Guides & Action Buttons */}
-          <div className="pt-2 flex items-center justify-end gap-3">
-            <span className={`text-[10px] font-mono-tech ${isNight ? 'text-[#9A9CA8]' : 'text-[#787A84]'}`}>
-              Open Guides <span className={`${isNight ? 'text-white' : 'text-[#121316]'} font-semibold`}>Y / N</span>
-            </span>
-
-            <div className="flex items-center gap-2">
-              <button
-                id="hero-bookmark-btn"
-                onClick={() => {
-                  sound.playMetallicClick();
-                }}
-                title="Save Spec"
-                className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-                  isNight
-                    ? 'border-white/20 bg-white/10 text-white hover:bg-white hover:text-[#121316]'
-                    : 'border-black/15 bg-white/40 text-[#121316] hover:bg-[#121316] hover:text-white'
-                }`}
-              >
-                <Bookmark className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                id="hero-cart-btn"
-                onClick={() => {
-                  sound.playMetallicClick();
-                  onOpenCustomizer();
-                }}
-                title="Reserve Edition"
-                className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-                  isNight
-                    ? 'border-white/20 bg-white/10 text-white hover:bg-white hover:text-[#121316]'
-                    : 'border-black/15 bg-white/40 text-[#121316] hover:bg-[#121316] hover:text-white'
-                }`}
-              >
-                <ShoppingBag className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Floating Tactile Controls & Scroll Cue */}
-      <div className="relative z-10 flex flex-col items-center gap-4 pointer-events-auto">
-        {/* Interactive Triggers */}
-        <div className="flex items-center gap-2.5">
-          <button
-            id="hero-bounce-btn"
-            onClick={onBounceBall}
-            className={`hero-action-btn flex items-center gap-1.5 px-4 py-2 rounded-full border text-[10px] font-mono-tech tracking-wider uppercase transition-all cursor-pointer shadow-sm ${
-              isNight
-                ? 'border-white/20 bg-white/10 hover:bg-white hover:text-[#121316] text-white'
-                : 'border-black/15 bg-white/50 hover:bg-[#121316] hover:text-white text-[#121316]'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>BOUNCE TEST</span>
-          </button>
-
-          <button
-            id="hero-spin-btn"
-            onClick={onSpinBall}
-            className={`hero-action-btn flex items-center gap-1.5 px-4 py-2 rounded-full border text-[10px] font-mono-tech tracking-wider uppercase transition-all cursor-pointer shadow-sm ${
-              isNight
-                ? 'border-white/20 bg-white/10 hover:bg-white hover:text-[#121316] text-white'
-                : 'border-black/15 bg-white/50 hover:bg-[#121316] hover:text-white text-[#121316]'
-            }`}
-          >
-            <Disc3 className="w-3.5 h-3.5" />
-            <span>SPIN (300 RPM)</span>
-          </button>
-
-          <button
-            id="hero-explore-anatomy-btn"
-            onClick={onExploreAnatomy}
-            className={`hero-action-btn flex items-center gap-1.5 px-5 py-2 rounded-full font-mono-tech text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer shadow-sm ${
-              isNight
-                ? 'bg-white text-[#121316] hover:bg-neutral-200'
-                : 'bg-[#121316] text-[#BEBEC6] hover:bg-[#25272E]'
-            }`}
-          >
-            <span>DECONSTRUCT 3D</span>
-          </button>
-        </div>
-
-        {/* Scroll Cue */}
-        <button
-          onClick={onExploreAnatomy}
-          className={`hero-scroll-cue flex items-center gap-1 text-[10px] font-mono-tech tracking-[0.2em] uppercase transition-colors cursor-pointer ${
-            isNight ? 'text-white/70 hover:text-white' : 'text-[#787A84] hover:text-[#121316]'
+      {/* 2. Precision Top Technical Badge */}
+      <div className="relative z-10 text-center max-w-3xl mx-auto pt-2 pointer-events-auto">
+        <p
+          className={`hero-badge text-[11px] sm:text-xs font-mono-tech tracking-[0.3em] uppercase mb-2.5 ${
+            isNight ? 'text-[#C4C6D4]' : 'text-[#555760]'
           }`}
         >
-          <span>EQUIPMENT SPECIFICATION</span>
-          <ChevronDown className="w-3 h-3 animate-bounce" />
+          \ FIBA REGULATION 29.5" \ NBA MATCH CALIBRATION \ 8.0 PSI NITROGEN \
+        </p>
+      </div>
+
+      {/* 3. Foreground Kinetic Mass Distribution Pie Dial & Live Telemetry HUD Moved Down */}
+      <div className="relative z-20 flex flex-col md:flex-row items-center justify-between gap-12 sm:gap-20 lg:gap-32 pointer-events-auto mt-auto mb-6 sm:mb-8 w-full px-2">
+        {/* Left Side: Technical Core HUD Readout */}
+        <div className="flex flex-col items-start gap-2.5 font-mono-tech text-xs select-none max-w-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className={`text-[10px] tracking-[0.25em] uppercase font-bold ${
+              isNight ? 'text-[#D0D2DE]' : 'text-[#3E4048]'
+            }`}>
+              DYNAMIC EQUILIBRIUM
+            </span>
+          </div>
+          <span className={`text-3xl sm:text-4xl font-extrabold tracking-tight font-display ${
+            isNight ? 'text-white' : 'text-[#121316]'
+          }`}>
+            624.5 G
+          </span>
+          <span className={`text-[10px] tracking-wider uppercase ${
+            isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+          }`}>
+            ±0.5g Match Invariant Mass Calibration
+          </span>
+        </div>
+
+        {/* Right Side: Foreground Layered Pie Chart Floating Crisply in the Foreground */}
+        <div className="hero-foreground-pie flex items-center gap-8 select-none">
+          {/* Circular SVG Pie / Donut Chart */}
+          <div className="relative w-36 h-36 sm:w-40 sm:h-40 flex items-center justify-center shrink-0">
+            <svg
+              className="w-full h-full -rotate-90"
+              viewBox="0 0 100 100"
+            >
+              {/* Outer track */}
+              <circle
+                cx="50"
+                cy="50"
+                r="38"
+                fill="none"
+                stroke={isNight ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}
+                strokeWidth="8"
+              />
+
+              {/* Segment 1: Outer Composite Leather (42%) */}
+              <circle
+                cx="50"
+                cy="50"
+                r="38"
+                fill="none"
+                stroke="#F59E0B"
+                strokeWidth="8"
+                strokeDasharray="100.3 238.8"
+                strokeDashoffset="0"
+                strokeLinecap="round"
+              />
+
+              {/* Segment 2: Polyamide Nylon Windings (28%) */}
+              <circle
+                cx="50"
+                cy="50"
+                r="38"
+                fill="none"
+                stroke="#38BDF8"
+                strokeWidth="8"
+                strokeDasharray="66.8 238.8"
+                strokeDashoffset="-105"
+                strokeLinecap="round"
+              />
+
+              {/* Segment 3: Cushion Sponge Foam (18%) */}
+              <circle
+                cx="50"
+                cy="50"
+                r="38"
+                fill="none"
+                stroke="#34D399"
+                strokeWidth="8"
+                strokeDasharray="43.0 238.8"
+                strokeDashoffset="-176"
+                strokeLinecap="round"
+              />
+
+              {/* Segment 4: Airtight Butyl Bladder (12%) */}
+              <circle
+                cx="50"
+                cy="50"
+                r="38"
+                fill="none"
+                stroke="#A855F7"
+                strokeWidth="8"
+                strokeDasharray="28.6 238.8"
+                strokeDashoffset="-223"
+                strokeLinecap="round"
+              />
+            </svg>
+
+            {/* Inner Center Metric */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className={`text-[10px] font-mono-tech uppercase tracking-widest ${
+                isNight ? 'text-[#8E90A0]' : 'text-[#656770]'
+              }`}>
+                COMPOSITION
+              </span>
+              <span className={`text-base font-bold font-mono-tech ${
+                isNight ? 'text-white' : 'text-[#121316]'
+              }`}>
+                100%
+              </span>
+            </div>
+          </div>
+
+          {/* Pie Chart Legend Breakdown (No card boxes, pure typography directly on site) */}
+          <div className="flex flex-col gap-2 font-mono-tech text-[10px]">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              <span className={isNight ? 'text-white font-bold' : 'text-[#121316] font-bold'}>42%</span>
+              <span className={isNight ? 'text-[#A0A2B0]' : 'text-[#555760]'}>Micro-Grain Composite</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
+              <span className={isNight ? 'text-white font-bold' : 'text-[#121316] font-bold'}>28%</span>
+              <span className={isNight ? 'text-[#A0A2B0]' : 'text-[#555760]'}>Polyamide Windings</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              <span className={isNight ? 'text-white font-bold' : 'text-[#121316] font-bold'}>18%</span>
+              <span className={isNight ? 'text-[#A0A2B0]' : 'text-[#555760]'}>Cushion Core Foam</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
+              <span className={isNight ? 'text-white font-bold' : 'text-[#121316] font-bold'}>12%</span>
+              <span className={isNight ? 'text-[#A0A2B0]' : 'text-[#555760]'}>Butyl Membrane</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Bottom Interactive Actions (Directly on site, solid steady state) */}
+      <div className="relative z-20 flex flex-wrap items-center justify-center gap-4 pointer-events-auto">
+        {/* Animated Construct / Deconstruct Action */}
+        <button
+          id="hero-construct-toggle-btn"
+          onClick={handleToggle}
+          className={`hero-action-btn flex items-center gap-2 px-6 py-2.5 rounded-full font-mono-tech text-[11px] font-bold tracking-wider uppercase transition-all cursor-pointer shadow-md active:scale-95 ${
+            isDeconstructed
+              ? isNight
+                ? 'bg-white text-[#121316] hover:bg-neutral-200'
+                : 'bg-[#121316] text-[#EDEDF2] hover:bg-[#25272E]'
+              : isNight
+              ? 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
+              : 'bg-white text-[#121316] hover:bg-neutral-100 border border-black/15'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{isDeconstructed ? 'ASSEMBLE (WHOLE)' : 'DECONSTRUCT 3D'}</span>
+        </button>
+
+        {/* Hardwood Bounce Test */}
+        <button
+          id="hero-bounce-btn"
+          onClick={onBounceBall}
+          className={`hero-action-btn flex items-center gap-2 px-5 py-2.5 rounded-full border text-[11px] font-mono-tech font-bold tracking-wider uppercase transition-all cursor-pointer shadow-sm active:scale-95 ${
+            isNight
+              ? 'border-white/20 bg-white/10 hover:bg-white hover:text-[#121316] text-white'
+              : 'border-black/15 bg-white/60 hover:bg-[#121316] hover:text-white text-[#121316]'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>BOUNCE TEST</span>
+        </button>
+
+        {/* 300 RPM Gyro Spin */}
+        <button
+          id="hero-spin-btn"
+          onClick={onSpinBall}
+          className={`hero-action-btn flex items-center gap-2 px-5 py-2.5 rounded-full border text-[11px] font-mono-tech font-bold tracking-wider uppercase transition-all cursor-pointer shadow-sm active:scale-95 ${
+            isNight
+              ? 'border-white/20 bg-white/10 hover:bg-white hover:text-[#121316] text-white'
+              : 'border-black/15 bg-white/60 hover:bg-[#121316] hover:text-white text-[#121316]'
+          }`}
+        >
+          <Disc3 className="w-3.5 h-3.5" />
+          <span>300 RPM SPIN</span>
         </button>
       </div>
     </section>
