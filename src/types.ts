@@ -11,7 +11,7 @@ export interface BallConfig {
   monogramText: string;
   monogramFoil: 'gold' | 'silver' | 'rose-gold' | 'holographic';
   serialNumber: string;
-  gripDensity: 'fiba' | 'deep-channel' | 'ultra-tack';
+  gripDensity: 'fiba' | 'nba' | 'custom' | 'deep-channel' | 'ultra-tack';
   roughness: number;
   metalness: number;
   pebbleDepth: number;
